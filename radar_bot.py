@@ -26,6 +26,12 @@ def calcola_rsi(data, window=14):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
+def clean_float(val):
+    """Estrae un valore numerico pulito per evitare errori di formato"""
+    if isinstance(val, pd.Series):
+        return float(val.iloc[0])
+    return float(val)
+
 def get_market_radar():
     radar_msg = "\n\n📊 *ANALISI POTENZIALE (RSI / EMA)*"
     tickers = {
@@ -40,14 +46,15 @@ def get_market_radar():
             df = yf.download(symbol, period="1y", interval="1d", progress=False)
             if df.empty: continue
             
-            last_price = float(df['Close'].iloc[-1])
-            ema200 = df['Close'].ewm(span=200, adjust=False).mean().iloc[-1]
+            # Prezzo attuale e EMA 200
+            last_price = clean_float(df['Close'].iloc[-1])
+            ema200 = clean_float(df['Close'].ewm(span=200, adjust=False).mean().iloc[-1])
             
-            # Calcolo RSI per l'ordinamento
+            # RSI per l'ordinamento
             rsi_series = calcola_rsi(df['Close'])
-            current_rsi = float(rsi_series.iloc[-1])
+            current_rsi = clean_float(rsi_series.iloc[-1])
             
-            # Percentuale di crescita: Distanza tra Prezzo Attuale e EMA 200
+            # Distanza dalla EMA 200 (Potenziale di crescita)
             distanza_ema = ((ema200 / last_price) - 1) * 100
             
             radar_results.append({
@@ -57,13 +64,12 @@ def get_market_radar():
             })
         except: continue
     
-    # Ordina per RSI crescente (priorità a chi è più ipervenduto)
+    # Ordina per RSI crescente
     radar_results.sort(key=lambda x: x['rsi'])
     
     for i, res in enumerate(radar_results):
-        # Cerchio verde per i primi tre in classifica per RSI
         emoji = "🟢" if i < 3 else "🔹"
-        # Mostriamo RSI (per l'ordine) e la distanza dalla EMA 200 (Potenziale di crescita)
+        # Ora i numeri sono puliti e non manderanno in crash il bot
         radar_msg += f"\n{emoji} *{res['name']}* | RSI: {res['rsi']:.1f} | Crescita EMA: {res['distanza']:+.2f}%"
         
     return radar_msg
@@ -75,7 +81,7 @@ def get_bilancio_euro():
 
     try:
         usd_eur_data = yf.download("EURUSD=X", period="1d", progress=False)
-        eur_usd_rate = float(usd_eur_data['Close'].iloc[-1])
+        eur_usd_rate = clean_float(usd_eur_data['Close'].iloc[-1])
     except:
         eur_usd_rate = 1.08
 
@@ -85,7 +91,7 @@ def get_bilancio_euro():
             if coin == "STRK": symbol = "STRK22691-USD"
             
             data = yf.download(symbol, period="1d", interval="1m", progress=False)
-            prezzo_attuale_usdc = float(data['Close'].iloc[-1])
+            prezzo_attuale_usdc = clean_float(data['Close'].iloc[-1])
             
             pnl_usdc_per_coin = prezzo_attuale_usdc - dati['pmc_usdc']
             pnl_perc = (pnl_usdc_per_coin / dati['pmc_usdc']) * 100
@@ -102,13 +108,14 @@ def get_bilancio_euro():
     report += f"\n🏦 *VALORE PORT*: {valore_totale_eur:.2f}€"
     return report
 
-def run_radar_v45():
+def run_radar_v46():
     try:
-        fng = requests.get('https://api.alternative.me/fng/').json()['data'][0]['value']
+        fng_data = requests.get('https://api.alternative.me/fng/').json()
+        fng = fng_data['data'][0]['value']
     except: fng = "N/A"
     
-    intestazione = f"🚀 *REPORT RADAR v45*\n*Sentiment*: {fng}/100"
+    intestazione = f"🚀 *REPORT RADAR v46*\n*Sentiment*: {fng}/100"
     invia_telegram(intestazione + get_market_radar() + get_bilancio_euro())
 
 if __name__ == "__main__":
-    run_radar_v45()
+    run_radar_v46()
