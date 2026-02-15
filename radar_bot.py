@@ -24,21 +24,19 @@ def get_bilancio_euro():
     valore_totale_asset = 0.0
 
     try:
-        # Recuperiamo il tasso di cambio EUR/USD per la conversione in Euro
+        # Recuperiamo il tasso di cambio EUR/USD per la conversione
         usd_eur_data = yf.download("EURUSD=X", period="1d", progress=False)
-        # Il ticker restituisce quanti USD vale 1 EUR (es. 1.08)
         eur_usd_rate = float(usd_eur_data['Close'].iloc[-1])
     except:
-        eur_usd_rate = 1.08 # Valore di emergenza se Yahoo non risponde
+        eur_usd_rate = 1.08 # Fallback se Yahoo fallisce
 
     for coin, dati in PORTAFOGLIO.items():
         try:
-            # Usiamo i ticker USD che sono i più affidabili
             symbol = f"{coin}-USD"
             data = yf.download(symbol, period="1d", interval="1m", progress=False)
             if data.empty: continue
             
-            # Convertiamo il prezzo attuale da USD a EUR
+            # Prezzo convertito da USD a EUR
             prezzo_usd = float(data['Close'].iloc[-1])
             prezzo_eur = prezzo_usd / eur_usd_rate
             
@@ -58,12 +56,12 @@ def get_bilancio_euro():
     report += f"\n🏦 *CAPITALE ATTUALE*: {valore_totale_asset:.2f}€"
     return report
 
-def run_radar_v36():
+def run_radar_v37():
     try:
         fng = requests.get('https://api.alternative.me/fng/').json()['data'][0]['value']
     except: fng = "N/A"
     
-    titolo = f"🚀 *REPORT RADAR v36*\n*Sentiment*: {fng}/100"
+    titolo = f"🚀 *REPORT RADAR v37*\n*Sentiment*: {fng}/100"
     
     # Prezzi di mercato rapidi
     analisi = "\n\n📊 *MERCATO (USD)*"
@@ -71,4 +69,11 @@ def run_radar_v36():
         try:
             df = yf.download(t, period="1d", progress=False)
             p = float(df['Close'].iloc[-1])
-            analisi += f"\n*{t.replace('-USD', '')}
+            # Riga corretta senza Syntax Error
+            analisi += f"\n*{t.replace('-USD', '')}*: {p:.2f}$"
+        except: continue
+
+    invia_telegram(titolo + analisi + get_bilancio_euro())
+
+if __name__ == "__main__":
+    run_radar_v37()
