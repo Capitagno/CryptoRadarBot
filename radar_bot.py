@@ -27,38 +27,35 @@ def calcola_rsi(data, window=14):
     return 100 - (100 / (1 + rs))
 
 def get_market_radar():
-    radar_msg = "\n\n📊 *ANALISI MERCATO (RSI)*"
-    # Usiamo il ticker corretto per Starknet su Yahoo
+    radar_msg = "\n\n📊 *ANALISI MERCATO (RSI CRESCENTE)*"
+    # Reinserito BNB nell'analisi di mercato
     tickers = {
         'BTC': 'BTC-USD', 'ETH': 'ETH-USD', 'SOL': 'SOL-USD', 
-        'OP': 'OP-USD', 'STRK': 'STRK22691-USD'
+        'BNB': 'BNB-USD', 'OP': 'OP-USD', 'STRK': 'STRK22691-USD'
     }
+    
+    radar_results = []
     
     for name, symbol in tickers.items():
         try:
             df = yf.download(symbol, period="1y", interval="1d", progress=False)
             if df.empty: continue
             
-            # Prezzo e EMA 200
-            last_price = float(df['Close'].iloc[-1])
-            ema200 = df['Close'].ewm(span=200, adjust=False).mean().iloc[-1]
-            
-            # RSI
+            # Calcolo RSI
             rsi_series = calcola_rsi(df['Close'])
             current_rsi = float(rsi_series.iloc[-1])
             
-            # Logica Segnale (Potenziale)
-            status = ""
-            if current_rsi < 45:
-                # Se RSI molto basso e sopra la media 200, è un BUY forte
-                if current_rsi < 32 and last_price > ema200:
-                    status = "🟢 *BUY*"
-                else:
-                    status = "🟠 *EVAL*"
-            
-            if status:
-                radar_msg += f"\n{status} {name} | RSI: {current_rsi:.1f}"
+            radar_results.append({'name': name, 'rsi': current_rsi})
         except: continue
+    
+    # Ordina i risultati per RSI crescente (dal più basso al più alto)
+    radar_results.sort(key=lambda x: x['rsi'])
+    
+    # Costruisci il messaggio marcando in verde i primi 3
+    for i, res in enumerate(radar_results):
+        emoji = "🟢" if i < 3 else "🟠" # Verde per i primi 3, arancione per gli altri
+        radar_msg += f"\n{emoji} *{res['name']}* | RSI: {res['rsi']:.1f}"
+        
     return radar_msg
 
 def get_bilancio_euro():
@@ -80,11 +77,9 @@ def get_bilancio_euro():
             data = yf.download(symbol, period="1d", interval="1m", progress=False)
             prezzo_attuale_usdc = float(data['Close'].iloc[-1])
             
-            # Calcolo PnL (Base USDC)
             pnl_usdc_per_coin = prezzo_attuale_usdc - dati['pmc_usdc']
             pnl_perc = (pnl_usdc_per_coin / dati['pmc_usdc']) * 100
             
-            # Conversione in Euro
             valore_attuale_eur = (prezzo_attuale_usdc * dati['qty']) / eur_usd_rate
             pnl_totale_eur = (pnl_usdc_per_coin * dati['qty']) / eur_usd_rate
             
@@ -98,16 +93,14 @@ def get_bilancio_euro():
     report += f"\n🏦 *VALORE PORT*: {valore_totale_eur:.2f}€"
     return report
 
-def run_radar_v40():
+def run_radar_v41():
     try:
         fng = requests.get('https://api.alternative.me/fng/').json()['data'][0]['value']
     except: fng = "N/A"
     
-    intestazione = f"🚀 *REPORT RADAR v40*\n*Sentiment*: {fng}/100"
-    
-    # Combina le due parti del messaggio
+    intestazione = f"🚀 *REPORT RADAR v41*\n*Sentiment*: {fng}/100"
     messaggio_finale = intestazione + get_market_radar() + get_bilancio_euro()
     invia_telegram(messaggio_finale)
 
 if __name__ == "__main__":
-    run_radar_v40()
+    run_radar_v41()
