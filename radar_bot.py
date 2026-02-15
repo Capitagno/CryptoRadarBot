@@ -1,18 +1,16 @@
 import os
+import yfinance as yf
 import requests
-from binance.client import Client
 
-# === CONFIGURAZIONE SECRETS ===
+# === CONFIGURAZIONE ===
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
 CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
-BIN_KEY = os.environ.get('BINANCE_API_KEY')
-BIN_SEC = os.environ.get('BINANCE_API_SECRET')
 
-# === PMC REALI (Dalla tua foto Prezzo.jpg) ===
-MIEI_ACQUISTI = {
-    'STRK': 0.0516,
-    'OP': 0.19621341,
-    'BNB': 629.99
+# === 📝 PORTAFOGLIO REALE (Dati Scaricati da Binance all'acquisto) ===
+PORTAFOGLIO = {
+    'BNB':  {'qty': 0.555,  'pmc': 629.99},
+    'OP':   {'qty': 1783.77,    'pmc': 0.1962},
+    'STRK': {'qty': 6782.94,  'pmc': 0.0516},
 }
 
 def invia_telegram(messaggio):
@@ -20,36 +18,51 @@ def invia_telegram(messaggio):
     payload = {"chat_id": CHAT_ID, "text": messaggio, "parse_mode": "Markdown"}
     requests.post(url, json=payload, timeout=15)
 
-def get_binance_pnl():
-    if not BIN_KEY or not BIN_SEC:
-        return "\n\n❌ Errore: Le chiavi non sono state passate dal file main.yml."
+def get_bilancio_euro():
+    report = "\n\n💰 *BILANCIO INVESTIMENTI*"
+    totale_pnl_eur = 0
+    valore_totale_asset = 0
 
-    try:
-        client = Client(BIN_KEY, BIN_SEC)
-        report = "\n\n💰 *STATO BINANCE LIVE*"
-        
-        for coin, buy_p in MIEI_ACQUISTI.items():
-            try:
-                # Seleziona la coppia corretta
-                symbol = f"{coin}USDT"
-                if coin in ["OP", "STRK"]: symbol = f"{coin}USDC"
-                
-                ticker = client.get_symbol_ticker(symbol=symbol)
-                curr_p = float(ticker['price'])
-                pnl = ((curr_p / buy_p) - 1) * 100
-                report += f"\n*{coin}*: {pnl:+.2f}% (Prezzo: {curr_p:.4f})"
-            except:
-                report += f"\n*{coin}*: Coppia {symbol} non trovata."
-        return report
-    except Exception as e:
-        return f"\n\n❌ Errore API Binance: {str(e)}"
+    for coin, dati in PORTAFOGLIO.items():
+        try:
+            # Usiamo il ticker -EUR per precisione assoluta
+            symbol = f"{coin}-EUR"
+            data = yf.download(symbol, period="1d", interval="1m", progress=False)
+            if data.empty: continue
+            
+            prezzo_attuale = data['Close'].iloc[-1]
+            valore_attuale = prezzo_attuale * dati['qty']
+            costo_iniziale = dati['pmc'] * dati['qty']
+            
+            pnl_eur = valore_attuale - costo_iniziale
+            pnl_perc = ((prezzo_attuale / dati['pmc']) - 1) * 100
+            
+            totale_pnl_eur += pnl_eur
+            valore_totale_asset += valore_attuale
+            
+            report += f"\n*{coin}*: {pnl_eur:+.2f}€ ({pnl_perc:+.2f}%)"
+        except: continue
+    
+    report += f"\n\n📊 *PNL TOTALE*: {totale_pnl_eur:+.2f}€"
+    report += f"\n🏦 *CAPITALE ATTUALE*: {valore_totale_asset:.2f}€"
+    return report
 
-def run_radar_v31():
+def run_radar_v34():
     try: fng = requests.get('https://api.alternative.me/fng/').json()['data'][0]['value']
     except: fng = "N/A"
     
-    titolo = f"🛰️ *RADAR v31 - BINANCE OK*\n*Sentiment*: {fng}/100"
-    invia_telegram(titolo + get_binance_pnl())
+    titolo = f"🚀 *REPORT RADAR v34 - ATTIVO*\n*Sentiment*: {fng}/100"
+    
+    # Prezzi di mercato rapidi
+    analisi = "\n\n📊 *MERCATO (EUR)*"
+    for t in ['BTC-EUR', 'ETH-EUR', 'SOL-EUR']:
+        try:
+            df = yf.download(t, period="1d", progress=False)
+            p = df['Close'].iloc[-1]
+            analisi += f"\n*{t.replace('-EUR', '')}*: {p:.2f}€"
+        except: continue
+
+    invia_telegram(titolo + analisi + get_bilancio_euro())
 
 if __name__ == "__main__":
-    run_radar_v31()
+    run_radar_v34()
