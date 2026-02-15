@@ -12,7 +12,7 @@ BIN_SEC = os.environ.get('BINANCE_SECRET_KEY') # Uso il nome esatto della tua fo
 # === 📝 PMC REALI (Necessari per il calcolo PnL) ===
 MIEI_ACQUISTI = {
     'STRK': 0.0516,
-    'OP': 0.1962
+    'OP': 0.1962,
     'BNB': 629.99
 }
 
