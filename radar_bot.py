@@ -6,11 +6,11 @@ import requests
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
 CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
-# === 📝 PORTAFOGLIO REALE (Dati aggiornati al momento dell'acquisto) ===
+# === 📝 PORTAFOGLIO REALE (Prezzi in USDC/USD) ===
 PORTAFOGLIO = {
-    'BNB':  {'qty': 0.555,   'pmc': 629.99},
-    'OP':   {'qty': 1783.77, 'pmc': 0.1962},
-    'STRK': {'qty': 6782.94, 'pmc': 0.0516},
+    'BNB':  {'qty': 0.555,   'pmc_usdc': 629.99},
+    'OP':   {'qty': 1783.77, 'pmc_usdc': 0.1962},
+    'STRK': {'qty': 6782.94, 'pmc_usdc': 0.0516},
 }
 
 def invia_telegram(messaggio):
@@ -19,61 +19,54 @@ def invia_telegram(messaggio):
     requests.post(url, json=payload, timeout=15)
 
 def get_bilancio_euro():
-    report = "\n\n💰 *BILANCIO INVESTIMENTI*"
+    report = "\n\n💰 *BILANCIO (BASE USDC)*"
     totale_pnl_eur = 0.0
-    valore_totale_asset = 0.0
+    valore_totale_eur = 0.0
 
     try:
-        # Recuperiamo il tasso di cambio EUR/USD per la conversione
+        # Recuperiamo il cambio EUR/USD per la conversione finale
         usd_eur_data = yf.download("EURUSD=X", period="1d", progress=False)
-        eur_usd_rate = float(usd_eur_data['Close'].iloc[-1])
+        eur_usd_rate = float(usd_eur_data['Close'].iloc[-1]) # 1 EUR = X USD
     except:
-        eur_usd_rate = 1.08 # Fallback se Yahoo fallisce
+        eur_usd_rate = 1.08
 
     for coin, dati in PORTAFOGLIO.items():
         try:
+            # Ticker specifici per Yahoo Finance
             symbol = f"{coin}-USD"
+            if coin == "STRK": symbol = "STRK22691-USD" # Starknet reale
+            
             data = yf.download(symbol, period="1d", interval="1m", progress=False)
             if data.empty: continue
             
-            # Prezzo convertito da USD a EUR
-            prezzo_usd = float(data['Close'].iloc[-1])
-            prezzo_eur = prezzo_usd / eur_usd_rate
+            # Prezzo attuale in USD/USDC
+            prezzo_attuale_usdc = float(data['Close'].iloc[-1])
             
-            valore_attuale_eur = prezzo_eur * dati['qty']
-            costo_iniziale_eur = dati['pmc'] * dati['qty']
+            # Calcolo PnL in Dollari/USDC
+            pnl_usdc_per_coin = prezzo_attuale_usdc - dati['pmc_usdc']
+            pnl_perc = (pnl_usdc_per_coin / dati['pmc_usdc']) * 100
             
-            pnl_eur = valore_attuale_eur - costo_iniziale_eur
-            pnl_perc = ((prezzo_eur / dati['pmc']) - 1) * 100
+            # Conversione Valori in Euro per il report
+            valore_attuale_eur = (prezzo_attuale_usdc * dati['qty']) / eur_usd_rate
+            pnl_totale_eur = (pnl_usdc_per_coin * dati['qty']) / eur_usd_rate
             
-            totale_pnl_eur += float(pnl_eur)
-            valore_totale_asset += float(valore_attuale_eur)
+            totale_pnl_eur += pnl_totale_eur
+            valore_totale_eur += valore_attuale_eur
             
-            report += f"\n*{coin}*: {pnl_eur:+.2f}€ ({pnl_perc:+.2f}%)"
+            report += f"\n*{coin}*: {pnl_totale_eur:+.2f}€ ({pnl_perc:+.2f}%)\n   _Price: {prezzo_attuale_usdc:.4f} USDC_"
         except: continue
     
     report += f"\n\n📊 *PNL TOTALE*: {totale_pnl_eur:+.2f}€"
-    report += f"\n🏦 *CAPITALE ATTUALE*: {valore_totale_asset:.2f}€"
+    report += f"\n🏦 *VALORE PORT*: {valore_totale_eur:.2f}€"
     return report
 
-def run_radar_v37():
+def run_radar_v39():
     try:
         fng = requests.get('https://api.alternative.me/fng/').json()['data'][0]['value']
     except: fng = "N/A"
     
-    titolo = f"🚀 *REPORT RADAR v37*\n*Sentiment*: {fng}/100"
-    
-    # Prezzi di mercato rapidi
-    analisi = "\n\n📊 *MERCATO (USD)*"
-    for t in ['BTC-USD', 'ETH-USD', 'SOL-USD']:
-        try:
-            df = yf.download(t, period="1d", progress=False)
-            p = float(df['Close'].iloc[-1])
-            # Riga corretta senza Syntax Error
-            analisi += f"\n*{t.replace('-USD', '')}*: {p:.2f}$"
-        except: continue
-
-    invia_telegram(titolo + analisi + get_bilancio_euro())
+    titolo = f"🚀 *REPORT RADAR v39*\n*Sentiment*: {fng}/100"
+    invia_telegram(titolo + get_bilancio_euro())
 
 if __name__ == "__main__":
-    run_radar_v37()
+    run_radar_v39()
