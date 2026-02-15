@@ -8,7 +8,6 @@ TOKEN = os.environ.get('TELEGRAM_TOKEN')
 CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
 # === 📝 PORTAFOGLIO REALE (Prezzi in USDC/USD) ===
-# Dati inseriti secondo le tue indicazioni di acquisto
 PORTAFOGLIO = {
     'BNB':  {'qty': 0.555,   'pmc_usdc': 629.99},
     'OP':   {'qty': 1783.77, 'pmc_usdc': 0.1962},
@@ -28,7 +27,7 @@ def calcola_rsi(data, window=14):
     return 100 - (100 / (1 + rs))
 
 def get_market_radar():
-    radar_msg = "\n\n📊 *ANALISI POTENZIALE*"
+    radar_msg = "\n\n📊 *ANALISI POTENZIALE (RSI / EMA)*"
     tickers = {
         'BTC': 'BTC-USD', 'ETH': 'ETH-USD', 'SOL': 'SOL-USD', 
         'BNB': 'BNB-USD', 'OP': 'OP-USD', 'STRK': 'STRK22691-USD'
@@ -41,26 +40,31 @@ def get_market_radar():
             df = yf.download(symbol, period="1y", interval="1d", progress=False)
             if df.empty: continue
             
+            last_price = float(df['Close'].iloc[-1])
+            ema200 = df['Close'].ewm(span=200, adjust=False).mean().iloc[-1]
+            
+            # Calcolo RSI per l'ordinamento
             rsi_series = calcola_rsi(df['Close'])
             current_rsi = float(rsi_series.iloc[-1])
             
-            # Potenziale = 100 - RSI (più l'RSI è basso, più il potenziale è alto)
-            potenziale = 100 - current_rsi
+            # Percentuale di crescita: Distanza tra Prezzo Attuale e EMA 200
+            distanza_ema = ((ema200 / last_price) - 1) * 100
             
             radar_results.append({
                 'name': name, 
                 'rsi': current_rsi, 
-                'potenziale': potenziale
+                'distanza': distanza_ema
             })
         except: continue
     
-    # Ordina per Potenziale Decrescente (il valore più alto in cima)
-    radar_results.sort(key=lambda x: x['potenziale'], reverse=True)
+    # Ordina per RSI crescente (priorità a chi è più ipervenduto)
+    radar_results.sort(key=lambda x: x['rsi'])
     
     for i, res in enumerate(radar_results):
-        # Mettiamo 🔥 ai primi tre (i migliori per RSI basso)
-        prefix = "🔥 " if i < 3 else "🔹 "
-        radar_msg += f"\n{prefix}*{res['name']}* | Potenziale: {res['potenziale']:.1f}%"
+        # Cerchio verde per i primi tre in classifica per RSI
+        emoji = "🟢" if i < 3 else "🔹"
+        # Mostriamo RSI (per l'ordine) e la distanza dalla EMA 200 (Potenziale di crescita)
+        radar_msg += f"\n{emoji} *{res['name']}* | RSI: {res['rsi']:.1f} | Crescita EMA: {res['distanza']:+.2f}%"
         
     return radar_msg
 
@@ -70,7 +74,6 @@ def get_bilancio_euro():
     valore_totale_eur = 0.0
 
     try:
-        # Conversione finale basata sul cambio EUR/USD
         usd_eur_data = yf.download("EURUSD=X", period="1d", progress=False)
         eur_usd_rate = float(usd_eur_data['Close'].iloc[-1])
     except:
@@ -84,11 +87,9 @@ def get_bilancio_euro():
             data = yf.download(symbol, period="1d", interval="1m", progress=False)
             prezzo_attuale_usdc = float(data['Close'].iloc[-1])
             
-            # Calcolo PnL basato su acquisto USDC
             pnl_usdc_per_coin = prezzo_attuale_usdc - dati['pmc_usdc']
             pnl_perc = (pnl_usdc_per_coin / dati['pmc_usdc']) * 100
             
-            # Conversione in Euro per il totale
             valore_attuale_eur = (prezzo_attuale_usdc * dati['qty']) / eur_usd_rate
             pnl_totale_eur = (pnl_usdc_per_coin * dati['qty']) / eur_usd_rate
             
@@ -101,14 +102,13 @@ def get_bilancio_euro():
     report += f"\n🏦 *VALORE PORT*: {valore_totale_eur:.2f}€"
     return report
 
-def run_radar_v44():
+def run_radar_v45():
     try:
         fng = requests.get('https://api.alternative.me/fng/').json()['data'][0]['value']
     except: fng = "N/A"
     
-    intestazione = f"🚀 *REPORT RADAR v44*\n*Sentiment*: {fng}/100"
-    messaggio_finale = intestazione + get_market_radar() + get_bilancio_euro()
-    invia_telegram(messaggio_finale)
+    intestazione = f"🚀 *REPORT RADAR v45*\n*Sentiment*: {fng}/100"
+    invia_telegram(intestazione + get_market_radar() + get_bilancio_euro())
 
 if __name__ == "__main__":
-    run_radar_v44()
+    run_radar_v45()
