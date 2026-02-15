@@ -7,7 +7,7 @@ from binance.client import Client
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
 CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 BIN_KEY = os.environ.get('BINANCE_API_KEY')
-BIN_SEC = os.environ.get('BINANCE_SECRET_KEY') # Uso il nome esatto della tua foto
+BIN_SEC = os.environ.get('BINANCE_API_SECRET') # Uso il nome esatto della tua foto
 
 # === 📝 PMC REALI (Necessari per il calcolo PnL) ===
 MIEI_ACQUISTI = {
