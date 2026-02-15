@@ -1,18 +1,17 @@
 import os
 import requests
-import pandas as pd
 from binance.client import Client
 
-# === CONFIGURAZIONE SECRETS (Nomi dalla tua foto secrets.jpg) ===
+# === CONFIGURAZIONE SECRETS ===
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
 CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 BIN_KEY = os.environ.get('BINANCE_API_KEY')
-BIN_SEC = os.environ.get('BINANCE_API_SECRET') # Uso il nome esatto della tua foto
+BIN_SEC = os.environ.get('BINANCE_API_SECRET')
 
-# === 📝 PMC REALI (Necessari per il calcolo PnL) ===
+# === PMC REALI (Dalla tua foto Prezzo.jpg) ===
 MIEI_ACQUISTI = {
     'STRK': 0.0516,
-    'OP': 0.1962,
+    'OP': 0.19621341,
     'BNB': 629.99
 }
 
@@ -21,42 +20,36 @@ def invia_telegram(messaggio):
     payload = {"chat_id": CHAT_ID, "text": messaggio, "parse_mode": "Markdown"}
     requests.post(url, json=payload, timeout=15)
 
-def get_binance_data():
+def get_binance_pnl():
+    if not BIN_KEY or not BIN_SEC:
+        return "\n\n❌ Errore: Le chiavi non sono state passate dal file main.yml."
+
     try:
-        # Inizializza il client Binance
         client = Client(BIN_KEY, BIN_SEC)
-        report = "\n\n💰 *PORTAFOGLIO BINANCE*"
+        report = "\n\n💰 *STATO BINANCE LIVE*"
         
         for coin, buy_p in MIEI_ACQUISTI.items():
             try:
-                # Prende il prezzo attuale direttamente da Binance
+                # Seleziona la coppia corretta
                 symbol = f"{coin}USDT"
-                if coin == "STRK": symbol = "STRKUSDC" # Adeguamento per le tue coppie
-                if coin == "OP": symbol = "OPUSDC"     # Adeguamento dalla tua foto
+                if coin in ["OP", "STRK"]: symbol = f"{coin}USDC"
                 
                 ticker = client.get_symbol_ticker(symbol=symbol)
                 curr_p = float(ticker['price'])
-                
-                # Calcolo PnL
                 pnl = ((curr_p / buy_p) - 1) * 100
                 report += f"\n*{coin}*: {pnl:+.2f}% (Prezzo: {curr_p:.4f})"
-            except Exception as e:
-                report += f"\n*{coin}*: Errore dati ({str(e)})"
+            except:
+                report += f"\n*{coin}*: Coppia {symbol} non trovata."
         return report
-    except:
-        return "\n\n❌ Errore connessione API Binance (Controlla le chiavi)."
+    except Exception as e:
+        return f"\n\n❌ Errore API Binance: {str(e)}"
 
-def run_radar_v29():
-    # 1. Sentiment
+def run_radar_v31():
     try: fng = requests.get('https://api.alternative.me/fng/').json()['data'][0]['value']
     except: fng = "N/A"
     
-    # 2. Intestazione
-    titolo = f"🛰️ *RADAR v29 - BINANCE LIVE*\n*Sentiment*: {fng}/100"
-    
-    # 3. Messaggio finale
-    # Nota: Ho rimosso l'analisi tecnica yfinance per concentrarci sul test Binance
-    invia_telegram(titolo + get_binance_data())
+    titolo = f"🛰️ *RADAR v31 - BINANCE OK*\n*Sentiment*: {fng}/100"
+    invia_telegram(titolo + get_binance_pnl())
 
 if __name__ == "__main__":
-    run_radar_v29()
+    run_radar_v31()
